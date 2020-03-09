@@ -1,0 +1,53 @@
+{
+  "_from": "homebridge-mi-ir-electrolux@^0.2.2",
+  "_id": "homebridge-mi-ir-electrolux@0.2.2",
+  "_inBundle": false,
+  "_integrity": "sha512-rKo2UZBvPk3+83sD+1JmvDKB2jdRG0Ydf4Ulz7+Psb/5FpFhXmaaBi4EcGH+IEl2NbNIT7/YePZ9tMH16uSikg==",
+  "_location": "/homebridge-mi-ir-electrolux",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "range",
+    "registry": true,
+    "raw": "homebridge-mi-ir-electrolux@^0.2.2",
+    "name": "homebridge-mi-ir-electrolux",
+    "escapedName": "homebridge-mi-ir-electrolux",
+    "rawSpec": "^0.2.2",
+    "saveSpec": null,
+    "fetchSpec": "^0.2.2"
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "https://registry.npmjs.org/homebridge-mi-ir-electrolux/-/homebridge-mi-ir-electrolux-0.2.2.tgz",
+  "_shasum": "2670f028330358381f63d75ff33df58b196bf4fc",
+  "_spec": "homebridge-mi-ir-electrolux@^0.2.2",
+  "_where": "/homebridge",
+  "bugs": {
+    "url": "https://github.com/WestCoast5550/homebridge-mi-ir-remote"
+  },
+  "bundleDependencies": false,
+  "deprecated": false,
+  "description": "Xiaomi IR 360 Remote plugin for homebridge: https://github.com/nfarina/homebridge",
+  "devDependencies": {
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-config-prettier": "^5.0.0",
+    "eslint-plugin-import": "^2.17.3"
+  },
+  "engines": {
+    "homebridge": ">=0.2.0",
+    "node": ">=7.6.0"
+  },
+  "homepage": "https://github.com/WestCoast5550/homebridge-mi-ir-remote#readme",
+  "keywords": [
+    "homebridge-plugin"
+  ],
+  "license": "GPLV3",
+  "name": "homebridge-mi-ir-electrolux",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WestCoast5550/homebridge-mi-ir-remote.git"
+  },
+  "version": "0.2.2"
+}
