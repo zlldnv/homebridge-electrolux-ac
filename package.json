@@ -1,7 +1,7 @@
 {
   "name": "homebridge-electrolux-ac",
   "description": "Xiaomi IR 360 Remote plugin for Electrolux AC",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "GPLV3",
   "keywords": [
     "homebridge-plugin"

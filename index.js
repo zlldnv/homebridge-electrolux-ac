@@ -14,9 +14,7 @@ const checkPlatformConfig = (homebridge, platform) => {
 
 module.exports = function(homebridge) {
   if (!checkPlatformConfig(homebridge, "miIRPlatform")) return;
-
   HomebridgeAPI = homebridge;
-
   HomebridgeAPI.registerPlatform(
     "homebridge-mi-ir-remote",
     "miIRPlatform",
@@ -47,11 +45,6 @@ class MiIRPlatform {
 
   accessories(callback) {
     const LoadedAccessories = [];
-    if (this.config.hidelearn == false) {
-      LoadedAccessories.push(
-        new MiRemoteirLearn(this, this.config.learnconfig)
-      );
-    }
     const { deviceCfgs } = this.config;
 
     if (deviceCfgs instanceof Array) {
@@ -75,10 +68,10 @@ const MiRemoteAirConditioner = (platform, config) => {
     `[MiRemoteAirConditioner]Initializing MiRemoteAirConditioner: ${config.ip}`
   );
   const ACInstance = {
-    minTemperature: "16",
-    maxTemperature: "30",
-    defaultTemperature: "26",
-    onoffstate: 0,
+    minTemperature: 16,
+    maxTemperature: 30,
+    defaultTemperature: 26,
+    currentMode: 0,
     targetTemperature: config.defaultTemperature,
     ...config,
     platform,
@@ -98,14 +91,13 @@ const MiRemoteAirConditioner = (platform, config) => {
   const Characteristic = platform.HomebridgeAPI.hap.Characteristic;
 
   ACInstance.getServices = () => {
-    const services = [];
     const tokensan = ACInstance.token.substring(ACInstance.token.length - 8);
     const infoService = new Service.AccessoryInformation();
     infoService
       .setCharacteristic(Characteristic.Manufacturer, "Electrolux")
       .setCharacteristic(Characteristic.Model, "Arctic")
       .setCharacteristic(Characteristic.SerialNumber, tokensan);
-    services.push(infoService);
+
     ACInstance.MiRemoteAirConditionerService = new Service.Thermostat(
       ACInstance.name,
       "Electrolux"
@@ -126,24 +118,12 @@ const MiRemoteAirConditioner = (platform, config) => {
     );
     MiRemoteAirConditionerServices.getCharacteristic(
       Characteristic.CurrentHeatingCoolingState
-    ).on("get", callback => callback(null, ACInstance.onoffstate));
+    ).on("get", callback => callback(null, ACInstance.currentMode));
     MiRemoteAirConditionerServices.getCharacteristic(
       Characteristic.TargetHeatingCoolingState
     )
-      .on("get", callback => {
-        callback(null, ACInstance.onoffstate);
-      })
-      .on("set", (value, callback) => {
-        let sstatus = ACInstance.SendData(value, ACInstance.targetTemperature);
-        sstatus = sstatus.state;
-        ACInstance.onoffstate = sstatus;
-        ACInstance.platform.log.debug(
-          `[${ACInstance.name}] AirConditioner: Status ${ACInstance.getACMode(
-            sstatus
-          )}`
-        );
-        callback(null, sstatus);
-      });
+      .on("get", ACInstance.onGetTargetHeatingCoolingState)
+      .on("set", ACInstance.onSetTargetHeatingCoolingState);
     MiRemoteAirConditionerServices.getCharacteristic(
       Characteristic.CurrentTemperature
     ).on("get", callback => {
@@ -152,74 +132,70 @@ const MiRemoteAirConditioner = (platform, config) => {
     MiRemoteAirConditionerServices.getCharacteristic(
       Characteristic.TargetTemperature
     )
-      .on("get", callback => {
-        callback(null, ACInstance.targetTemperature);
-      })
-      .on("set", (value, callback) => {
-        ACInstance.platform.log.info(ACInstance.onoffstate);
-        if (ACInstance.onoffstate !== 0) {
-          var tem = ACInstance.SendData(ACInstance.onoffstate, value);
-        }
-        ACInstance.targetTemperature =
-          ACInstance.onoffstate !== 0 ? tem.tem : value;
-        ACInstance.MiRemoteAirConditionerService.setCharacteristic(
-          Characteristic.CurrentTemperature,
-          ACInstance.targetTemperature
-        );
-        ACInstance.platform.log.debug(
-          `[${ACInstance.name}]AirConditioner: Temperature ${ACInstance.targetTemperature}`
-        );
-        callback(null, tem);
-      });
+      .on("get", ACInstance.onGetTargetTemperature)
+      .on("set", ACInstance.onSetTargetTemperature);
 
-    services.push(MiRemoteAirConditionerServices);
-    return services;
+    return [infoService, MiRemoteAirConditionerServices];
+  };
+
+  ACInstance.onGetTargetHeatingCoolingState = callback => {
+    callback(null, ACInstance.currentMode);
+  };
+
+  ACInstance.onSetTargetHeatingCoolingState = (value, callback) => {
+    let status = ACInstance.SendData(value, ACInstance.targetTemperature);
+    status = status.state;
+    ACInstance.currentMode = status;
+    ACInstance.platform.log.debug(
+      `[${ACInstance.name}] AirConditioner: Status ${ACInstance.getACMode(
+        status
+      )}`
+    );
+    callback(null, status);
+  };
+
+  ACInstance.onGetTargetTemperature = callback => {
+    callback(null, ACInstance.targetTemperature);
+  };
+
+  ACInstance.onSetTargetTemperature = (value, callback) => {
+    if (ACInstance.currentMode !== 0) {
+      var tem = ACInstance.SendData(ACInstance.currentMode, value);
+    }
+    ACInstance.targetTemperature =
+      ACInstance.currentMode !== 0 ? tem.tem : value;
+    ACInstance.MiRemoteAirConditionerService.setCharacteristic(
+      Characteristic.CurrentTemperature,
+      ACInstance.targetTemperature
+    );
+    ACInstance.platform.log.debug(
+      `[${ACInstance.name}]AirConditioner: Temperature ${ACInstance.targetTemperature}`
+    );
+    callback(null, tem);
   };
 
   ACInstance.getACMode = state => {
     switch (state) {
       case Characteristic.TargetHeatingCoolingState.AUTO:
-        return ACInstance.onoffstate === 0 ? "Auto" : "AutoOn";
+        return !ACInstance.currentMode ? "Auto" : "AutoOn";
       case Characteristic.TargetHeatingCoolingState.COOL:
-        return ACInstance.onoffstate === 0 ? "Cool" : "CoolOn";
+        return !ACInstance.currentMode ? "Cool" : "CoolOn";
       case Characteristic.TargetHeatingCoolingState.HEAT:
-        return ACInstance.onoffstate === 0 ? "Heat" : "HeatOn";
+        return !ACInstance.currentMode ? "Heat" : "HeatOn";
       default:
-        return ACInstance.onoffstate === 0 ? "doNothing" : "off";
+        return !ACInstance.currentMode ? "doNothing" : "off";
     }
   };
 
-  ACInstance.SendData = (state, value) => {
-    if (!value) value = ACInstance.defaultTemperature;
-    const sstatus = ACInstance.getACMode(state);
-    let datas = { tem: value };
-    if (sstatus == "off") {
-      datay = ACInstance.data.off;
-    } else if (sstatus == "Auto") {
-      if (ACInstance.data.Auto != null) {
-        datas = ACInstance.GetDataString(ACInstance.data[sstatus], value);
-        var datay = datas.data;
-      } else {
-        datay = ACInstance.data.off;
-        state = 0;
-        setTimeout(() => {
-          ACInstance.MiRemoteAirConditionerService.setCharacteristic(
-            Characteristic.CurrentHeatingCoolingState,
-            0
-          );
-          ACInstance.MiRemoteAirConditionerService.setCharacteristic(
-            Characteristic.TargetHeatingCoolingState,
-            0
-          );
-        }, 0.6 * 1000);
-      }
-    } else {
-      datas = ACInstance.GetDataString(ACInstance.data[sstatus], value);
-      var datay = datas.data;
-    }
-    if (datay !== "" && ACInstance.readydevice) {
+  ACInstance.SendData = (state, temperature) => {
+    if (!temperature) temperature = ACInstance.defaultTemperature;
+    const status = ACInstance.getACMode(state);
+    const data = { temperature, state };
+    const code = ACInstance.getCodeIsGoingToBeSend(status, data);
+
+    if (code && ACInstance.readydevice) {
       ACInstance.device
-        .call("miIO.ir_play", { freq: 38400, code: datay })
+        .call("miIO.ir_play", { freq: 38400, code })
         .then(() => {
           ACInstance.platform.log.debug(
             `[${ACInstance.name}]AirConditioner: Send Success`
@@ -229,65 +205,64 @@ const MiRemoteAirConditioner = (platform, config) => {
           ACInstance.platform.log.error(
             `[${ACInstance.name}][ERROR]AirConditioner Error: ${err}`
           );
-          state = ACInstance.onoffstate;
+          data.state = ACInstance.currentMode;
         });
     } else {
       ACInstance.platform.log.info(
         `[${ACInstance.name}] AirConditioner: Unready`
       );
     }
-    const temm = datas.tem || value;
-    return { state, tem: temm };
+    return { state, tem: data.temperature ? data.temperature : temperature };
   };
 
-  ACInstance.GetDataString = (dataa, value) => {
-    let returnkey = ACInstance.targetTemperature;
-    if (dataa[value]) {
-      returnkey = value;
-    } else {
-      let min = ACInstance.minTemperature;
-      let max = ACInstance.maxTemperature;
-      for (let i = value; i > ACInstance.minTemperature; i -= 1) {
-        if (dataa[i]) {
-          min = i;
-          i = -1;
+  ACInstance.getCodeIsGoingToBeSend = (status, data) => {
+    switch (status) {
+      case "off":
+      case "doNothing":
+        data.code = ACInstance.data[status];
+        break;
+      case "Auto":
+        if (!ACInstance.data.Auto) {
+          data.code = ACInstance.data.off;
+          data.state = 0;
+          setTimeout(() => {
+            ACInstance.MiRemoteAirConditionerService.setCharacteristic(
+              Characteristic.CurrentHeatingCoolingState,
+              0
+            );
+            ACInstance.MiRemoteAirConditionerService.setCharacteristic(
+              Characteristic.TargetHeatingCoolingState,
+              0
+            );
+          }, 0.6 * 1000);
+          break;
         }
-      }
-      for (let i = value; i <= ACInstance.maxTemperature; i += 1) {
-        if (dataa[i]) {
-          max = i;
-          i = 101;
-        }
-      }
-      if (min > ACInstance.minTemperature && max < ACInstance.maxTemperature) {
-        const vmin = value - min;
-        const vmax = max - value;
-        returnkey = vmin > vmax ? min : max;
-      } else {
-        returnkey = ACInstance.defaultTemperature;
-        ACInstance.platform.log.error(
-          `[${ACInstance.name}]AirConditioner: Illegal Temperature, Unisset: ${value} Use ${returnkey} instead`
-        );
-      }
+      default:
+        data = {
+          ...data,
+          ...ACInstance.GetDataString(ACInstance.data[status], data.temperature)
+        };
     }
-    return { data: dataa[returnkey], tem: returnkey };
-  };
-  ACInstance.startPingingDevice = period => {
-    setInterval(async () => {
-      ACInstance.platform.log.debug("AirConditioner keep alive");
-      try {
-        await ACInstance.device.call("miIO.ir_play", {
-          freq: 38400,
-          code: "dummy"
-        });
-        ACInstance.platform.platform.log.debug("AirConditioner SUCCESS");
-      } catch (err) {
-        ACInstance.platform.log.debug("AirConditioner FAIL");
-      }
-    }, period);
+    return data.code;
   };
 
-  ACInstance.startPingingDevice(HALF_A_MUNUTE);
+  ACInstance.GetDataString = (data, value) => {
+    let returnkey = ACInstance.targetTemperature;
+    if (data[value]) returnkey = value;
+    return { code: data[returnkey], temperature: returnkey };
+  };
+  //AirConditioner keep alive
+  setInterval(async () => {
+    try {
+      await ACInstance.device.call("miIO.ir_play", {
+        freq: 38400,
+        code: "dummy"
+      });
+      ACInstance.platform.log.debug("AirConditioner SUCCESS");
+    } catch (err) {
+      ACInstance.platform.log.debug("AirConditioner FAIL");
+    }
+  }, HALF_A_MUNUTE);
 
   return ACInstance;
 };
