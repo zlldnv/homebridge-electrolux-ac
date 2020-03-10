@@ -3,7 +3,7 @@ const miio = require("miio");
 const { version } = require("./package.json");
 let HomebridgeAPI;
 
-const HALF_A_MUNUTE = 38400;
+const HALF_A_MINUTE = 38400;
 
 const checkPlatformConfig = (homebridge, platform) => {
   const { platforms } = require(`${homebridge.user.configPath()}`);
@@ -12,7 +12,7 @@ const checkPlatformConfig = (homebridge, platform) => {
   );
 };
 
-module.exports = function(homebridge) {
+module.exports = homebridge => {
   if (!checkPlatformConfig(homebridge, "miIRPlatform")) return;
   HomebridgeAPI = homebridge;
   HomebridgeAPI.registerPlatform(
@@ -33,12 +33,9 @@ class MiIRPlatform {
     this.config = config;
     this.api = api;
 
-    this.api.on(
-      "didFinishLaunching",
-      function() {
-        this.log.info("Done!");
-      }.bind(this)
-    );
+    this.api.on("didFinishLaunching", () => {
+      this.log.info("Done!");
+    });
 
     this.log.info("Loading v%s ", version);
   }
@@ -47,15 +44,11 @@ class MiIRPlatform {
     const LoadedAccessories = [];
     const { deviceCfgs } = this.config;
 
-    if (deviceCfgs instanceof Array) {
-      for (let i = 0; i < deviceCfgs.length; i++) {
-        const deviceCfg = deviceCfgs[i];
-        if (deviceCfg.type && deviceCfg.token) {
-          deviceCfg.type === "AirConditioner"
-            ? LoadedAccessories.push(MiRemoteAirConditioner(this, deviceCfg))
-            : this.log.error(`device type: ${deviceCfg.type}Unexist!`);
-        }
-      }
+    if (Array.isArray(deviceCfgs)) {
+      deviceCfgs.forEach(deviceCfg => {
+        if (deviceCfg.token && deviceCfg.ip)
+          LoadedAccessories.push(MiRemoteAirConditioner(this, deviceCfg));
+      });
       this.log.info(`Loaded accessories: ${LoadedAccessories.length}`);
     }
 
@@ -246,11 +239,10 @@ const MiRemoteAirConditioner = (platform, config) => {
     return data.code;
   };
 
-  ACInstance.GetDataString = (data, value) => {
-    let returnkey = ACInstance.targetTemperature;
-    if (data[value]) returnkey = value;
-    return { code: data[returnkey], temperature: returnkey };
-  };
+  ACInstance.GetDataString = (data, value) => ({
+    code: data[value] || data[ACInstance.targetTemperature],
+    temperature: value
+  });
   //AirConditioner keep alive
   setInterval(async () => {
     try {
@@ -262,7 +254,7 @@ const MiRemoteAirConditioner = (platform, config) => {
     } catch (err) {
       ACInstance.platform.log.debug("AirConditioner FAIL");
     }
-  }, HALF_A_MUNUTE);
+  }, HALF_A_MINUTE);
 
   return ACInstance;
 };
